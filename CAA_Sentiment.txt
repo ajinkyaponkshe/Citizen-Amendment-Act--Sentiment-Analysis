@@ -1,0 +1,140 @@
+#Clear Environment
+rm(list=ls())
+```
+```{r }
+# Load the required R libraries
+
+install.packages("RColorBrewer")
+install.packages("tm")
+install.packages("wordcloud")
+install.packages('base64enc')
+install.packages('ROAuth')
+install.packages('plyr')
+install.packages('stringr')
+install.packages('twitteR')
+
+library(RColorBrewer)
+library(wordcloud)
+library(tm)
+library(twitteR)
+library(ROAuth)
+library(plyr)
+library(stringr)
+library(base64enc)
+install.packages("SnowballC")
+library(wordcloud)
+library(SnowballC)
+library(tm)
+library(tibble)
+library(dplyr)
+library(purrr)
+```
+#Twitter Setup
+
+api_key <- "xxxxx"
+api_secret <- "xxxx"
+access_token <- "xxxxxxx"
+access_token_secret <- "xxxxxx"
+
+# Set constant requestURL
+requestURL <- "https://api.twitter.com/oauth/request_token"
+# Set constant accessURL
+accessURL <- "https://api.twitter.com/oauth/access_token"
+# Set constant authURL
+authURL <- "https://api.twitter.com/oauth/authorize"
+
+setup_twitter_oauth(api_key,api_secret,access_token,access_token_secret)
+
+Twitter Search
+no.of.tweets <- 2000
+CAA <- searchTwitter('CAA', n=no.of.tweets, lang="en" )
+CAA.df <- tbl_df(map_df(CAA,as.data.frame))
+Narendra_modi <- searchTwitter('Narendra Modi', n=no.of.tweets, lang="en" )
+Amit_Shah <- searchTwitter('Amit Shah', n=no.of.tweets, lang="en" )
+bjp <- searchTwitter('BJP', n=no.of.tweets, lang="en" )
+Congress <- searchTwitter('Congress', n=no.of.tweets, lang="en" )
+NM.df <- tbl_df(map_df(Narendra_modi,as.data.frame))
+AS.df <- tbl_df(map_df(Amit_Shah,as.data.frame))
+BJP.df <- tbl_df(map_df(bjp,as.data.frame))
+Congress.df <- tbl_df(map_df(Congress,as.data.frame))
+
+#Sentiment FUnction
+pos.words <- read.csv('positive.csv')
+neg.words <- read.csv('negative.csv')
+
+pos.words <- scan('positive.csv',what = 'character')
+neg.words <- scan('negative.csv',what = 'character')
+
+
+
+
+score.sentiment = function(sentences, pos.words, neg.words, .progress='none')
+{
+  require(plyr)
+  require(stringr)
+  
+  # we got a vector of sentences. plyr will handle a list
+  # or a vector as an "l" for us
+  # we want a simple array ("a") of scores back, so we use 
+  # "l" + "a" + "ply" = "laply":
+  
+  scores = laply(sentences, function(sentence, pos.words, neg.words) {
+    
+    # clean up sentences with R's regex-driven global substitute, gsub():
+    sentence = gsub('[[:punct:]]', '', sentence)
+    sentence = gsub('[[:cntrl:]]', '', sentence)
+    sentence = gsub('\\d+', '', sentence)
+    # and convert to lower case:
+    sentence = tolower(sentence)
+    
+    # split into words. str_split is in the stringr package
+    word.list = str_split(sentence, '\\s+')
+    # sometimes a list() is one level of hierarchy too much
+    words = unlist(word.list)
+    
+    # compare our words to the dictionaries of positive & negative terms
+    pos.matches = match(words, pos.words)
+    neg.matches = match(words, neg.words)
+    
+    # match() returns the position of the matched term or NA
+    # we just want a TRUE/FALSE:
+    pos.matches = !is.na(pos.matches)
+    neg.matches = !is.na(neg.matches)
+    
+    # and conveniently enough, TRUE/FALSE will be treated as 1/0 by sum():
+    score = sum(pos.matches) - sum(neg.matches)
+    
+    return(score)
+  }, pos.words, neg.words, .progress=.progress )
+  
+  scores.df = data.frame(score=scores, text=sentences)
+  return(scores.df)
+}
+
+#Sentiment Analysis
+
+CAA_SCORE <- score.sentiment(CAA.df$text,pos.words,neg.words,.progres='Text')
+hist(CAA_SCORE$score,col = 'orchid3', main = 'Sentiment Analysis for Citizen Amendment Act ', ylab = 'Number of Tweets',xlab='Sentiment Score for CAA')
+CAA_AVG <- mean(CAA_SCORE$score)
+
+NM_Score <- score.sentiment(NM.df$text,pos.words,neg.words,.progres='Text')
+hist(NM_Score$score,col = 'honeydew3', main = 'Sentiment Analysis for Narendra Modi ', ylab = 'Number of Tweets',xlab='Sentiment Score for Narendra Modi')
+NM_AVG <- mean(NM_Score$score)
+
+AS_Score <- score.sentiment(AS.df$text,pos.words,neg.words,.progres='Text')
+hist(AS_Score$score,col = 'red4', main = 'Sentiment Analysis for Amit Shah ', ylab = 'Number of Tweets',xlab='Sentiment Score for Amit Shah')
+AS_AVG <- mean(AS_Score$score)
+
+BJP_Score <- score.sentiment(BJP.df$text,pos.words,neg.words,.progres='Text')
+hist(BJP_Score$score,col = 'dark orange', main = 'Sentiment Analysis for BJP ', ylab = 'Number of Tweets',xlab='Sentiment Score for BJP')
+
+BJP_AVG <- mean(BJP_Score$score)
+
+Congress_Score <- score.sentiment(Congress.df$text,pos.words,neg.words,.progres='Text')
+hist(Congress_Score$score,col = 'steelblue2', main = 'Sentiment Analysis for Congress ', ylab = 'Number of Tweets',xlab='Sentiment Score for Congress')
+Congress_AVG <- mean(Congress_Score$score)
+
+Newmatrxi <- c(CAA_AVG,NM_AVG,AS_AVG,BJP_AVG,Congress_AVG )
+
+Newmatrxi
+barplot(Newmatrxi,col=c('orchid3','honeydew3','red4','dark orange','steelblue2'), ylab = 'Avg_Sentiment Score',xlab =
